@@ -158,7 +158,9 @@ export class KnowledgeBaseStore {
     }
 
     const started = Date.now();
-    await collection.add({ ids, documents, embeddings, metadatas });
+    // upsert keeps re-importing the same file idempotent: chunk ids are stable,
+    // so a plain insert would hit the primary key on the second import.
+    await collection.upsert({ ids, documents, embeddings, metadatas });
     const ms = Date.now() - started;
     const total = await collection.count();
     return { added: ids.length, total, ms };

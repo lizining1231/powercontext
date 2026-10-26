@@ -20,6 +20,10 @@ interface Job {
   onProgress?: (done: number, total: number) => void;
 }
 
+const LOCAL_MANIFEST = "/models/manifest.json";
+const LOCAL_FP16 = "onnx/model_fp16.onnx";
+const LOCAL_FP32 = "onnx/model.onnx";
+
 /**
  * Detects whether WebGPU is usable and reports why fallback happened, so the
  * UI can state the active backend explicitly instead of silently degrading.
@@ -39,6 +43,27 @@ export async function detectDevice(): Promise<{ device: DeviceKind; reason?: str
     return { device: "webgpu" };
   } catch (error) {
     return { device: "wasm", reason: error instanceof Error ? error.message : "WebGPU 初始化失败" };
+  }
+}
+
+interface LocalModel {
+  files: Set<string>;
+}
+
+/**
+ * Reads the bundled model manifest. The dev server answers unknown paths with
+ * index.html, so the JSON has to be parsed before trusting the response.
+ */
+async function loadLocalModel(): Promise<LocalModel | null> {
+  try {
+    const response = await fetch(LOCAL_MANIFEST);
+    if (!response.ok) return null;
+    const manifest = JSON.parse(await response.text());
+    if (typeof manifest?.model !== "string") return null;
+    const files = new Set<string>((manifest.files ?? []).map((item: { file: string }) => item.file));
+    return { files };
+  } catch {
+    return null;
   }
 }
 
@@ -114,9 +139,26 @@ export function useEmbedder() {
   }, []);
 
   const init = useCallback(
-    (options: { model: string; device: DeviceKind; dtype: Precision; remoteHost?: string }) =>
-      new Promise<EmbedderInfo>((resolve, reject) => {
-        const worker = ensureWorker();
+    async (options: { model: string; device: DeviceKind; dtype: Precision; remoteHost?: string }) => {
+      const worker = ensureWorker();
+      const local = import.meta.env.VITE_LOCAL_MODELS === "0" ? null : await loadLocalModel();
+
+      let { device, dtype } = options;
+      let note: string | undefined;
+      if (local) {
+        // Only INT8 ships with the repo; FP16/FP32 need a remote download.
+        if (dtype === "fp16" && !local.files.has(LOCAL_FP16)) {
+          note = "本地仅内置 INT8 权重，已使用 WASM + INT8（FP16 需联网下载）";
+          device = "wasm";
+          dtype = "q8";
+        } else if (dtype === "fp32" && !local.files.has(LOCAL_FP32)) {
+          note = "本地仅内置 INT8 权重，已使用 WASM + INT8（FP32 需联网下载）";
+          device = "wasm";
+          dtype = "q8";
+        }
+      }
+
+      return new Promise<EmbedderInfo>((resolve, reject) => {
         initWaiter.current = { resolve, reject };
         setStatus("loading");
         setError(null);
@@ -125,11 +167,14 @@ export function useEmbedder() {
         worker.postMessage({
           type: "init",
           model: options.model,
-          device: options.device,
-          dtype: options.dtype,
+          device,
+          dtype,
           remoteHost: options.remoteHost,
+          preferLocal: Boolean(local),
+          note,
         });
-      }),
+      });
+    },
     [ensureWorker],
   );
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { formatMs } from "../lib/config";
 import type { KnowledgeBase, SearchHit } from "../types";
@@ -7,6 +7,9 @@ import type { useEmbedder } from "../hooks/useEmbedder";
 interface Props {
   kb: KnowledgeBase | null;
   embedder: ReturnType<typeof useEmbedder>;
+  initialQuery?: string;
+  autoRun?: boolean;
+  onAutoConsumed?: () => void;
 }
 
 type Mode = "hybrid" | "vector" | "fulltext";
@@ -23,8 +26,8 @@ interface Timings {
   totalMs: number;
 }
 
-export function SearchPanel({ kb, embedder }: Props) {
-  const [query, setQuery] = useState("");
+export function SearchPanel({ kb, embedder, initialQuery, autoRun, onAutoConsumed }: Props) {
+  const [query, setQuery] = useState(initialQuery ?? "");
   const [mode, setMode] = useState<Mode>("hybrid");
   const [topK, setTopK] = useState(6);
   const [hits, setHits] = useState<SearchHit[]>([]);
@@ -74,6 +77,16 @@ export function SearchPanel({ kb, embedder }: Props) {
       setBusy(false);
     }
   };
+
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (!autoRun || autoRan.current) return;
+    if (!kb || embedder.status !== "ready" || !initialQuery) return;
+    autoRan.current = true;
+    onAutoConsumed?.();
+    void run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRun, kb, embedder.status, initialQuery]);
 
   return (
     <section className="panel">

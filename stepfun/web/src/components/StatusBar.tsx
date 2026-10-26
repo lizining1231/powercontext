@@ -75,7 +75,10 @@ export function StatusBar({
           ，首次运行需要下载权重，之后走浏览器缓存。
         </p>
       )}
-      {degraded && status !== "error" && (
+      {info?.fallbackReason && status === "ready" && (
+        <p className="notice notice--warn">{info.fallbackReason}</p>
+      )}
+      {degraded && status !== "error" && !info?.fallbackReason && (
         <p className="notice notice--warn">
           已自动降级到 WASM 后端：{detected?.reason}。核心流程仍然可用，检索质量不受影响。
         </p>

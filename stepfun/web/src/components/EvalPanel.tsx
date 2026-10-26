@@ -144,7 +144,6 @@ export function EvalPanel({
       for (let i = 0; i < queries.length; i += 1) {
         const query = queries[i];
         setStage(`评测查询（${i + 1}/${queries.length}）`);
-        const embedStarted = performance.now();
         const queryVector = await embedder.embed([query.query], { batchSize: 1 });
         const embedMs = queryVector.elapsedMs;
         const response = await api.search(kb.id, {
@@ -166,7 +165,6 @@ export function EvalPanel({
           retrieved,
           relevant: query.relevant,
         });
-        void embedStarted;
       }
 
       setReport({

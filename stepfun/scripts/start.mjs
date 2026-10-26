@@ -3,6 +3,7 @@
  * `--prod` is given, the Vite dev server for the browser app.
  */
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSeekdbEnv } from "./runtime.mjs";
@@ -44,7 +45,14 @@ run("server", process.execPath, ["server/src/index.mjs"], serverEnv);
 
 if (!prod) {
   const viteBin = path.join(repoRoot, "node_modules", ".bin", "vite");
-  run("web", viteBin, ["--config", "web/vite.config.mts"], {});
+  if (!existsSync(viteBin)) {
+    process.stderr.write(
+      `[web] vite not found at ${viteBin}. Run "npm install" in ${repoRoot} first.\n`,
+    );
+    shutdown(1);
+  } else {
+    run("web", viteBin, ["--config", "web/vite.config.mts"], {});
+  }
 } else {
   process.stdout.write("[stepfun] production mode: web/dist is served by the API server\n");
 }

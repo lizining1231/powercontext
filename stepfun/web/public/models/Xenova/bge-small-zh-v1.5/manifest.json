@@ -1,0 +1,37 @@
+{
+  "model": "Xenova/bge-small-zh-v1.5",
+  "endpoint": "https://huggingface.co",
+  "files": [
+    {
+      "file": "config.json",
+      "size": 716,
+      "cached": true
+    },
+    {
+      "file": "tokenizer.json",
+      "size": 439125,
+      "cached": true
+    },
+    {
+      "file": "tokenizer_config.json",
+      "size": 367,
+      "cached": true
+    },
+    {
+      "file": "special_tokens_map.json",
+      "size": 125,
+      "cached": true
+    },
+    {
+      "file": "vocab.txt",
+      "size": 109540,
+      "cached": true
+    },
+    {
+      "file": "onnx/model_quantized.onnx",
+      "size": 24010842,
+      "cached": true
+    }
+  ],
+  "totalBytes": 24560715
+}

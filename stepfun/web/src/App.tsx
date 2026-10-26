@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import { DEFAULT_MODEL, HF_ENDPOINT, resolvePrecision } from "./lib/config";
+import { importTexts } from "./lib/importer";
+import { loadCorpus } from "./lib/corpus";
 import { detectDevice, useEmbedder } from "./hooks/useEmbedder";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
@@ -27,6 +29,10 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("import");
   const [seekdbPath, setSeekdbPath] = useState<string | undefined>(undefined);
   const [bootError, setBootError] = useState<string | null>(null);
+  const [demo, setDemo] = useState<{ stage: string; progress: number } | null>(null);
+  const [demoError, setDemoError] = useState<string | null>(null);
+  const [demoQuery, setDemoQuery] = useState<string | null>(null);
+  const demoStarted = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -74,6 +80,38 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [precision, reloadToken]);
 
+  // A fresh clone has no data. Seed one demo knowledge base automatically so the
+  // first screen already shows the full import -> embed -> retrieve flow.
+  useEffect(() => {
+    if (demoStarted.current) return;
+    if (embedder.status !== "ready" || !embedder.info) return;
+    if (items.length !== 0) return;
+    demoStarted.current = true;
+    void (async () => {
+      try {
+        setDemo({ stage: "创建示例知识库", progress: 0 });
+        const kb = await api.createKnowledgeBase("示例知识库", embedder.info!.dim, DEFAULT_MODEL);
+        await refresh();
+        setActiveId(kb.id);
+        const rows = await loadCorpus();
+        await importTexts({
+          kbId: kb.id,
+          sources: rows.map((row) => ({ source: row.source || row.id, text: row.text })),
+          embed: embedder.embed,
+          onStage: (stage, progress) => setDemo({ stage, progress }),
+        });
+        await refresh();
+        setDemoQuery("没有 GPU 时怎么降级");
+        setTab("search");
+      } catch (cause) {
+        setDemoError(cause instanceof Error ? cause.message : String(cause));
+      } finally {
+        setDemo(null);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [embedder.status, items.length]);
+
   const active = useMemo(() => items.find((item) => item.id === activeId) ?? null, [items, activeId]);
 
   const createKnowledgeBase = async (name: string) => {
@@ -110,6 +148,14 @@ export default function App() {
           onRetry={() => setReloadToken((value) => value + 1)}
         />
 
+        {demo && (
+          <p className="notice notice--info">
+            首次启动正在准备示例数据：{demo.stage}
+            {demo.progress > 0 ? `（${Math.round(demo.progress * 100)}%）` : ""}
+          </p>
+        )}
+        {demoError && <p className="notice notice--warn">示例数据准备失败：{demoError}</p>}
+
         {bootError && (
           <p className="notice notice--error">
             无法连接本地 API：{bootError}。请确认 <code>npm run dev</code> 已启动 seekdb 服务。
@@ -131,7 +177,15 @@ export default function App() {
         {tab === "import" && (
           <ImportPanel kb={active} embedder={embedder} onImported={() => void refresh()} />
         )}
-        {tab === "search" && <SearchPanel kb={active} embedder={embedder} />}
+        {tab === "search" && (
+          <SearchPanel
+            kb={active}
+            embedder={embedder}
+            initialQuery={demoQuery ?? undefined}
+            autoRun={Boolean(demoQuery)}
+            onAutoConsumed={() => setDemoQuery(null)}
+          />
+        )}
         {tab === "eval" && <EvalPanel embedder={embedder} onFinished={() => void refresh()} />}
       </main>
     </div>

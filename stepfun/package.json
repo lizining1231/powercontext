@@ -11,7 +11,8 @@
   "scripts": {
     "dev": "node scripts/start.mjs",
     "build": "npm run build --workspace web",
-    "start": "node scripts/start.mjs --prod"
+    "start": "node scripts/start.mjs --prod",
+    "fetch-model": "node scripts/fetch-model.mjs"
   },
   "engines": {
     "node": ">=20"

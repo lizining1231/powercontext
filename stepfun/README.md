@@ -13,6 +13,7 @@
 | 🗄️ 存储与检索 | seekdb 嵌入式模式，向量索引 + 全文索引，`hybridSearch` 在库内完成 RRF 融合 |
 | 🔁 增量写入 | 新文档写入后立即可检索，支持多知识库切换与删除 |
 | 📊 质量评测 | 内置 40 篇语料 / 16 条标注查询，一键算 Recall@5/10、nDCG@10、MRR@10 |
+| 🎬 首屏演示 | 全新启动时自动创建示例知识库、导入语料并跑一次示例查询 |
 
 ## 🏗️ 架构
 
@@ -38,7 +39,7 @@
 
 ## 🚀 快速开始
 
-环境要求：Node.js ≥ 20，Chrome / Edge 最新版。首次运行需要联网下载 seekdb 原生运行时（约 198 MB，缓存到 `~/.seekdb`）与 embedding 模型（FP16 45.7 MB / INT8 23.3 MB，走浏览器缓存）。
+环境要求：Node.js ≥ 20，Chrome / Edge 最新版。首次运行会联网下载 seekdb 原生运行时（约 198 MB，缓存到 `~/.seekdb`）；embedding 模型已随仓库内置（INT8，23.4 MB），**不依赖外网即可完成全部演示**。
 
 ```bash
 cd stepfun
@@ -46,7 +47,15 @@ npm install          # 依赖安装（.npmrc 已处理 seekdb-js 的 peer 协议
 npm run dev          # 同时启动 API(8090) 与前端(5173)
 ```
 
-打开 <http://localhost:5173>。
+打开 <http://localhost:5173>。首次打开会自动创建「示例知识库」、导入 40 篇语料并执行一次示例查询，无需手工点击。
+
+需要 FP16 / FP32 精度做对比时，先补下载权重（约 119 MB）：
+
+```bash
+npm run fetch-model          # 或 npm run fetch-model -- --int8 只补 INT8
+```
+
+`web/public/models/manifest.json` 会让应用优先加载本地权重；设置 `VITE_LOCAL_MODELS=0` 可强制走在线下载。
 
 生产模式：
 
@@ -64,6 +73,7 @@ npm start            # 单进程：API 同时托管静态页面，访问 :8090
 | `EMBEDDING_DIM` | 新知识库默认向量维度 | `512` |
 | `VITE_EMBEDDING_MODEL` | 前端嵌入模型 | `Xenova/bge-small-zh-v1.5` |
 | `VITE_HF_ENDPOINT` | 模型下载镜像 | 官方地址 |
+| `VITE_LOCAL_MODELS` | 设为 `0` 强制在线加载模型 | 优先本地内置权重 |
 
 ### 🐧 Linux 说明
 
@@ -96,7 +106,7 @@ Ubuntu 24.04 把 libaio 改名为 `libaio.so.1t64`，且 `libseekdb.so` 延迟�
 | 配置 | 模型体积 | 查询向量化 | seekdb 检索 | Recall@10 |
 |---|---|---|---|---|
 | FP16 + WebGPU | 45.7 MB | 127 ms | 14 ms | 0.969 |
-| INT8 + WASM | 23.3 MB | 34 ms | 15 ms | 0.969 |
+| INT8 + WASM（默认内置） | 23.3 MB | 34 ms | 15 ms | 0.969 |
 | FP32 + WASM（基线） | 90.9 MB | 34 ms | 12 ms | 0.969 |
 
 向量化批大小从 1 提到 16，吞吐由 736 字/秒提升到 2,686 字/秒。
@@ -109,13 +119,17 @@ stepfun/
 ├── web/               # React + Vite + Transformers.js
 │   ├── src/embedder.worker.ts   # 端侧推理 Worker
 │   └── public/eval/             # 评测语料与标注查询
-├── scripts/start.mjs  # 一键启动（含 Linux 运行时垫片）
+├── scripts/
+│   ├── start.mjs      # 一键启动（含 Linux 运行时垫片）
+│   └── fetch-model.mjs  # 模型权重下载（默认已内置 INT8）
+├── docs/measurements.md  # 原始测量记录
 └── TECHNICAL_NOTE.md  # 一页技术说明
 ```
 
 ## ⚠️ 已知限制
 
 - 评测集规模为 40 篇语料 / 16 条查询，仅用于同口径横向对比，不代表大规模场景的绝对指标。
+- 仓库内置的是 INT8 权重，FP16 / FP32 需要联网下载；无网络时应用自动使用 INT8 + WASM 并提示原因。
 - seekdb 嵌入式运行时在进程退出时会打印一条 teardown 提示，不影响数据一致性与后续启动。
 - 文本知识库为必选功能，图片内容未纳入本期实现。
 

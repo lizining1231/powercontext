@@ -61,6 +61,10 @@ app.post("/api/kb/:id/search", handle(async (req, res) => {
   res.json(await store.search(req.params.id, { text, embedding, k, mode }));
 }));
 
+app.use("/api", (req, res) => {
+  res.status(404).json({ error: `unknown API route: ${req.method} ${req.originalUrl}` });
+});
+
 if (fs.existsSync(config.webDist)) {
   app.use(express.static(config.webDist));
   app.get("*", (_req, res) => res.sendFile(path.join(config.webDist, "index.html")));

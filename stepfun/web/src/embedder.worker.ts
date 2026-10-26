@@ -26,11 +26,22 @@ async function init(message: {
   dtype: Dtype;
   remoteHost?: string;
   threads?: number;
+  preferLocal?: boolean;
+  note?: string;
 }) {
   const started = performance.now();
   if (message.remoteHost) env.remoteHost = message.remoteHost;
-  env.allowLocalModels = false;
   env.useBrowserCache = true;
+  if (message.preferLocal) {
+    // Weights were pre-fetched by `npm run fetch-model`; keep inference fully
+    // offline by refusing remote downloads.
+    env.allowLocalModels = true;
+    env.allowRemoteModels = false;
+    env.localModelPath = new URL("/models/", ctx.location.origin).href;
+  } else {
+    env.allowLocalModels = false;
+    env.allowRemoteModels = true;
+  }
 
   const files = new Map<string, number>();
   const wasm = (env as any).backends?.onnx?.wasm;
@@ -51,11 +62,51 @@ async function init(message: {
     },
   };
 
+  const createPipeline = pipeline as any;
+  let effectiveDevice: Device = message.device;
+  let effectiveDtype: Dtype = message.dtype;
+  let fallbackReason: string | undefined;
+  let firstError = "";
+
   try {
-    const createPipeline = pipeline as any;
     extractor = (await createPipeline("feature-extraction", message.model, options)) as FeatureExtractionPipeline;
   } catch (error) {
-    post({ type: "error", message: error instanceof Error ? error.message : String(error) });
+    firstError = error instanceof Error ? error.message : String(error);
+  }
+
+  if (!extractor && message.preferLocal) {
+    // Local weights are incomplete: allow remote download instead of failing.
+    env.allowLocalModels = false;
+    env.allowRemoteModels = true;
+    try {
+      extractor = (await createPipeline("feature-extraction", message.model, options)) as FeatureExtractionPipeline;
+    } catch (error) {
+      firstError = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  if (!extractor && message.device === "webgpu") {
+    // A usable adapter can still fail when the session is created (shader
+    // compilation, device memory pressure). Retry on WASM so the flow survives.
+    fallbackReason = `WebGPU 会话创建失败，已自动降级 WASM：${firstError}`;
+    effectiveDevice = "wasm";
+    effectiveDtype = "q8";
+    try {
+      extractor = (await createPipeline("feature-extraction", message.model, {
+        ...options,
+        device: effectiveDevice,
+        dtype: effectiveDtype,
+      })) as FeatureExtractionPipeline;
+    } catch (error) {
+      firstError = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  if (!extractor) {
+    post({
+      type: "error",
+      message: firstError,
+    });
     return;
   }
 
@@ -76,12 +127,13 @@ async function init(message: {
     type: "ready",
     info: {
       model: message.model,
-      device: message.device,
-      dtype: message.dtype,
+      device: effectiveDevice,
+      dtype: effectiveDtype,
       loadMs,
       warmupMs,
       modelBytes,
       dim,
+      fallbackReason: message.note ?? fallbackReason,
     },
   });
 }

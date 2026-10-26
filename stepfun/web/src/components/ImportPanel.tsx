@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
-import { api } from "../api";
-import { chunkId, chunkText } from "../lib/chunk";
+import { importTexts, type ImportSummary } from "../lib/importer";
+import { loadCorpus } from "../lib/corpus";
 import { formatMs } from "../lib/config";
 import type { KnowledgeBase } from "../types";
 import type { useEmbedder } from "../hooks/useEmbedder";
@@ -9,14 +9,6 @@ interface Props {
   kb: KnowledgeBase | null;
   embedder: ReturnType<typeof useEmbedder>;
   onImported: () => void;
-}
-
-interface Summary {
-  chunks: number;
-  chars: number;
-  embedMs: number;
-  totalMs: number;
-  serverWriteMs: number;
 }
 
 const CHUNK_SIZE = 320;
@@ -29,7 +21,7 @@ export function ImportPanel({ kb, embedder, onImported }: Props) {
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState("");
   const [progress, setProgress] = useState(0);
-  const [summary, setSummary] = useState<Summary | null>(null);
+  const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [batchSize, setBatchSize] = useState(16);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -45,62 +37,26 @@ export function ImportPanel({ kb, embedder, onImported }: Props) {
 
   const importSources = async (sources: Array<{ source: string; text: string }>) => {
     if (!kb) return;
-    const started = performance.now();
     setError(null);
     setSummary(null);
     setBusy(true);
+    setProgress(0);
 
     try {
-      setStage("切分文本");
-      setProgress(0);
-      const chunks = sources.flatMap(({ source, text }) =>
-        chunkText(text, { maxChars: CHUNK_SIZE, overlap: CHUNK_OVERLAP }).map((chunk, index) => ({
-          id: chunkId(source, index, chunk),
-          text: chunk,
-          source,
-          chunk: index,
-        })),
-      );
-
-      if (chunks.length === 0) throw new Error("没有可导入的文本内容");
-
-      setStage(`本地向量化（0/${chunks.length}）`);
-      const embedded = await embedder.embed(
-        chunks.map((chunk) => chunk.text),
-        {
-          batchSize,
-          onProgress: (done, total) => {
-            setStage(`本地向量化（${done}/${total}）`);
-            setProgress(done / total);
-          },
+      const result = await importTexts({
+        kbId: kb.id,
+        sources,
+        embed: embedder.embed,
+        batchSize,
+        chunkSize: CHUNK_SIZE,
+        overlap: CHUNK_OVERLAP,
+        writeBatch: WRITE_BATCH,
+        onStage: (nextStage, nextProgress) => {
+          setStage(nextStage);
+          setProgress(nextProgress);
         },
-      );
-      const embedMs = embedded.elapsedMs;
-
-      setStage("写入 seekdb");
-      let serverWriteMs = 0;
-      for (let offset = 0; offset < chunks.length; offset += WRITE_BATCH) {
-        const slice = chunks.slice(offset, offset + WRITE_BATCH);
-        const docs = slice.map((chunk, index) => ({
-          id: chunk.id,
-          text: chunk.text,
-          source: chunk.source,
-          chunk: chunk.chunk,
-          embedding: Array.from(embedded.vectors[offset + index]),
-        }));
-        const result = await api.addDocs(kb.id, docs);
-        serverWriteMs += result.ms;
-        setProgress(Math.min(1, (offset + slice.length) / chunks.length));
-      }
-
-      const totalMs = performance.now() - started;
-      setSummary({
-        chunks: chunks.length,
-        chars: chunks.reduce((sum, chunk) => sum + chunk.text.length, 0),
-        embedMs,
-        totalMs,
-        serverWriteMs,
       });
+      setSummary(result);
       setText("");
       setFiles([]);
       if (fileInput.current) fileInput.current.value = "";
@@ -115,15 +71,10 @@ export function ImportPanel({ kb, embedder, onImported }: Props) {
   };
 
   const loadSample = async () => {
-    setBusy(true);
     setError(null);
+    setBusy(true);
     try {
-      const response = await fetch("/eval/corpus.jsonl");
-      if (!response.ok) throw new Error("示例语料不可用");
-      const rows = (await response.text())
-        .split("\n")
-        .filter(Boolean)
-        .map((line) => JSON.parse(line) as { id: string; text: string; source: string });
+      const rows = await loadCorpus();
       await importSources(rows.map((row) => ({ source: row.source || row.id, text: row.text })));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));

@@ -1,0 +1,16 @@
+{"id": "q01", "query": "seekdb 嵌入式模式怎么用", "relevant": ["c002", "c003"]}
+{"id": "q02", "query": "seekdb 能同时存向量和全文吗", "relevant": ["c001", "c004"]}
+{"id": "q03", "query": "HNSW 的 M 和 ef 参数有什么影响", "relevant": ["c007"]}
+{"id": "q04", "query": "余弦距离为什么适合文本向量", "relevant": ["c008"]}
+{"id": "q05", "query": "中文全文检索用什么分词器", "relevant": ["c011"]}
+{"id": "q06", "query": "匹配与反对语法的全文检索怎么打分", "relevant": ["c012"]}
+{"id": "q07", "query": "两路召回怎么融合排序", "relevant": ["c016", "c017"]}
+{"id": "q08", "query": "为什么不能在客户端拼合两路结果", "relevant": ["c018"]}
+{"id": "q09", "query": "数据库内混合检索是怎么实现的", "relevant": ["c019"]}
+{"id": "q10", "query": "浏览器里怎么跑 ONNX 模型", "relevant": ["c021"]}
+{"id": "q11", "query": "句子向量该用哪种池化", "relevant": ["c022"]}
+{"id": "q12", "query": "推理放到 worker 里有什么好处", "relevant": ["c023"]}
+{"id": "q13", "query": "没有 GPU 时怎么降级", "relevant": ["c027", "c028"]}
+{"id": "q14", "query": "INT8 量化能压缩多少体积", "relevant": ["c031", "c033"]}
+{"id": "q15", "query": "量化之后检索质量怎么评估", "relevant": ["c034"]}
+{"id": "q16", "query": "增量导入什么时候能检索到新文档", "relevant": ["c038"]}

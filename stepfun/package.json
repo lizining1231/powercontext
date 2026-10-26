@@ -1,0 +1,19 @@
+{
+  "name": "stepfun-endpoint-kb",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Browser-side embedding + seekdb hybrid retrieval mini knowledge base",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "node scripts/start.mjs",
+    "build": "npm run build --workspace web",
+    "start": "node scripts/start.mjs --prod"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

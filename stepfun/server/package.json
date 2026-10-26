@@ -1,0 +1,11 @@
+{
+  "name": "@stepfun/server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/index.mjs",
+  "dependencies": {
+    "express": "^4.21.2",
+    "seekdb": "1.4.0"
+  }
+}
